@@ -96,12 +96,85 @@ public:
                 throw std::runtime_error("Unknown sensor type");
             }
         }
+
+        main_model = update_models[config.main_model].get();
+
+        timer = this->create_wall_timer(std::chrono::milliseconds(10),
+            std::bind(&AckermannEkfNode::timer_callback, this));
+
+        tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+        odom_pub = this->create_publisher<nav_msgs::msg::Odometry>(config.odometry_topic, 1);
     }
 
 private:
     std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> sensor_subscribers;
     std::unordered_map<std::string, std::shared_ptr<ckf::Model>> update_models;
     std::unordered_map<std::string, std::shared_ptr<ckf::Sensor>> sensors;
+
+    std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
+    rclcpp::TimerBase::SharedPtr timer;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub;
+
+    ckf::Model* main_model;
+
+    void timer_callback() {
+        double time = get_clock()->now().seconds();
+
+        // model->update(time);
+        // V state = model->get_state();
+
+        std::pair<V, M> prediction = main_model->predict(time);
+        V state = prediction.first;
+        M covariance = prediction.second;
+
+        nav_msgs::msg::Odometry odom_msg;
+        odom_msg.header.stamp = this->now();
+        odom_msg.header.frame_id = "odom";
+        odom_msg.child_frame_id = "base_link";
+
+        odom_msg.pose.pose.position.x = state[ckf::state::x];
+        odom_msg.pose.pose.position.y = state[ckf::state::y];
+        odom_msg.pose.pose.position.z = 0.0;
+
+        odom_msg.pose.covariance[0] = covariance(ckf::state::x, ckf::state::x);
+        odom_msg.pose.covariance[7] = covariance(ckf::state::y, ckf::state::y);
+        odom_msg.pose.covariance[35] = covariance(ckf::state::yaw, ckf::state::yaw);
+
+        tf2::Quaternion q = tf2::Quaternion();
+        q.setRPY(0, 0, state[ckf::state::yaw]);
+        q = q.normalized();
+        odom_msg.pose.pose.orientation.x = q.x();
+        odom_msg.pose.pose.orientation.y = q.y();
+        odom_msg.pose.pose.orientation.z = q.z();
+        odom_msg.pose.pose.orientation.w = q.w();
+
+        odom_msg.twist.twist.linear.x = state[ckf::state::d_x];
+        odom_msg.twist.twist.linear.y = state[ckf::state::d_y];
+        odom_msg.twist.twist.angular.z = state[ckf::state::d_yaw];
+
+        odom_msg.twist.covariance[0] = covariance(ckf::state::d_x, ckf::state::d_x);
+        odom_msg.twist.covariance[7] = covariance(ckf::state::d_y, ckf::state::d_y);
+        odom_msg.twist.covariance[35] = covariance(ckf::state::d_yaw, ckf::state::d_yaw);
+
+        odom_pub->publish(odom_msg);
+
+        geometry_msgs::msg::TransformStamped transformStamped;
+
+        transformStamped.header.stamp = this->now();
+        transformStamped.header.frame_id = "odom";
+        transformStamped.child_frame_id = "base_link";
+
+        transformStamped.transform.translation.x = state[ckf::state::x];
+        transformStamped.transform.translation.y = state[ckf::state::y];
+        transformStamped.transform.translation.z = state[ckf::state::z];
+
+        transformStamped.transform.rotation.x = q.x();
+        transformStamped.transform.rotation.y = q.y();
+        transformStamped.transform.rotation.z = q.z();
+        transformStamped.transform.rotation.w = q.w();
+
+        tf_broadcaster_->sendTransform(transformStamped);
+    }
 };
 
 int main(int argc, char* argv[]) {
