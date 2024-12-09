@@ -5,10 +5,6 @@
 #include <vector>
 #include <unordered_map>
 #include <utility>
-#include "model.h"
-#include "sensor.h"
-#include "standard_models.h"
-#include "std_ros_sensors.h"
 
 namespace cev_localization {
     namespace config_parser {
@@ -42,16 +38,6 @@ namespace cev_localization {
         class ConfigParser {
         public:
             static Config loadConfig(const std::string& filePath);
-
-            static std::pair<std::unordered_map<std::string, std::shared_ptr<ckf::Model>>,
-                std::unordered_map<std::string, std::shared_ptr<ckf::Sensor>>>
-            parseConfig(Config config);
-
-            static std::pair<std::unordered_map<std::string, std::shared_ptr<ckf::Model>>,
-                std::unordered_map<std::string, std::shared_ptr<ckf::Sensor>>>
-            parsedLoad(const std::string& filePath) {
-                return parseConfig(loadConfig(filePath));
-            }
 
         private:
             static Sensor parseSensor(const YAML::Node& sensorNode);
