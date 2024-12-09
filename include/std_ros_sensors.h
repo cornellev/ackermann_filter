@@ -1,3 +1,5 @@
+#pragma once
+
 #include "sensor_msgs/msg/imu.hpp"
 #include "nav_msgs/msg/odometry.hpp"
 #include "cev_msgs/msg/sensor_collect.hpp"
@@ -23,7 +25,8 @@ namespace cev_localization {
             double last_sensor_raw_yaw;
 
         public:
-            IMUSensor(V state, M covariance, std::vector<std::shared_ptr<Model>> dependents,
+            IMUSensor(std::string topic, V state, M covariance,
+                std::vector<std::shared_ptr<Model>> dependents,
                 std::vector<bool> state_mask = {false, false, false, false, false, true, false,
                     false, false, false, false, false, true, true, false, false, false, false},
                 bool relative = true);
@@ -33,7 +36,8 @@ namespace cev_localization {
 
         class RawSensor : public RosSensor<cev_msgs::msg::SensorCollect> {
         public:
-            RawSensor(V state, M covariance, std::vector<std::shared_ptr<Model>> dependents,
+            RawSensor(std::string topic, V state, M covariance,
+                std::vector<std::shared_ptr<Model>> dependents,
                 std::vector<bool> state_mask = {false, false, false, false, false, false, true,
                     false, false, false, false, false, false, false, false, true, false, false});
 

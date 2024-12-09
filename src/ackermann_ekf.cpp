@@ -4,11 +4,10 @@
 
 #include "model.h"
 #include "ros_sensor.h"
+#include "std_ros_sensors.h"
 #include "config_parser.h"
 
 #include <tf2_ros/transform_broadcaster.h>
-
-#include "std_ros_sensors.h"
 
 #include <iostream>
 
@@ -26,7 +25,6 @@ public:
         std::string config_file_path = this->get_parameter("config_file").as_string();
 
         // Load the YAML configurations
-        config_parser::Config config = config_parser::ConfigParser::loadConfig(config_file_path);
 
         // std::unordered_map<std::string, std::shared_ptr<Model>> update_models;
         // std::unordered_map<std::string, std::shared_ptr<Model>> sensors;

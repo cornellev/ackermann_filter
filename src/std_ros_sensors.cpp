@@ -3,13 +3,15 @@
 
 using namespace cev_localization::standard_ros_sensors;
 
+/* IMU SENSOR */
+
 double IMUSensor::pos_mod(double angle) {
     return fmod(fmod(angle, 2 * M_PI) + 2 * M_PI, 2 * M_PI);
 }
 
-IMUSensor::IMUSensor(V state, M covariance, std::vector<std::shared_ptr<Model>> dependents,
-    std::vector<bool> state_mask, bool relative)
-    : RosSensor<sensor_msgs::msg::Imu>(state, covariance, dependents),
+IMUSensor::IMUSensor(std::string topic, V state, M covariance,
+    std::vector<std::shared_ptr<Model>> dependents, std::vector<bool> state_mask, bool relative)
+    : RosSensor<sensor_msgs::msg::Imu>(topic, state, covariance, dependents),
       initialized(false),
       relative(relative),
       initial_yaw(0),
@@ -56,9 +58,11 @@ StatePackage IMUSensor::msg_update(sensor_msgs::msg::Imu::SharedPtr msg) {
     return estimate;
 }
 
-RawSensor::RawSensor(V state, M covariance, std::vector<std::shared_ptr<Model>> dependents,
-    std::vector<bool> state_mask)
-    : RosSensor<cev_msgs::msg::SensorCollect>(state, covariance, dependents) {
+/* RAW SENSOR */
+
+RawSensor::RawSensor(std::string topic, V state, M covariance,
+    std::vector<std::shared_ptr<Model>> dependents, std::vector<bool> state_mask)
+    : RosSensor<cev_msgs::msg::SensorCollect>(topic, state, covariance, dependents) {
     multiplier = Estimator::state_mask_to_matrix(state_mask);
 }
 

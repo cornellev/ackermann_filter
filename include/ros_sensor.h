@@ -15,9 +15,13 @@ namespace cev_localization {
         }
 
     public:
-        RosSensor(ckf::V state, ckf::M covariance,
+        RosSensor(std::string topic, ckf::V state, ckf::M covariance,
             std::vector<std::shared_ptr<ckf::Model>> dependents)
-            : Sensor(state, covariance, dependents) {}
+            : Sensor(state, covariance, dependents) {
+            this->topic = topic;
+        }
+
+        std::string topic;
 
         /**
          * Handle a new message. Meant to be used as or in a message subscriber.
