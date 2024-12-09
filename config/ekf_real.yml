@@ -2,6 +2,7 @@
 odometry_settings:
   time_step: 1.0  # Time step for the filter publish (in seconds)
   topic: "/odometry/filtered" # Topic to publish the odometry data
+  main_model: "ackermann"  # Main model to use for the filter
 
 # Define the sensors used by the node
 sensors:
@@ -11,13 +12,12 @@ sensors:
     frame_id: "imu_frame" # Frame ID for the sensor data
     
     state: [
-        true,  false,  false,
-        true,  false,  false,
-        true,  false,  false,
-        false, false,  false,
-        false, false,  false,
-        false, false,  false,
-        false, false,  false
+        false, false, false,
+        false, false, true,
+        false, false, false,
+        false, false, false,
+        true,  true,  false,
+        false, false, false
     ]  # State variables for the sensor. Each should be true or false
     covariance_multiplier: 1.0 # Multiplier to multiply message covariance by
     estimator_models: [
@@ -25,18 +25,17 @@ sensors:
     ] # List of strings representing models to use for the sensor data by name
   
   encoder_odometry:
-    type: "ODOM"  # Sensor type (IMU, GPS, etc.)
-    topic: "/odometry"  # Topic to subscribe to
+    type: "RAW"  # Sensor type (IMU, GPS, etc.)
+    topic: "/sensor_collect"  # Topic to subscribe to
     frame_id: "odom_frame" # Frame ID for the sensor data
     
     state: [
-        true,  false,  false,
-        true,  false,  false,
-        true,  false,  false,
-        false, false,  false,
-        false, false,  false,
-        false, false,  false,
-        false, false,  false
+        false, false, false,
+        false, false, false,
+        true,  false, false,
+        false, false, false,
+        false, false, false,
+        true,  false, false
     ]  # State variables for the sensor. Each should be true or false
     covariance_multiplier: 2.0 # Multiplier to multiply message covariance by
     estimator_models: [

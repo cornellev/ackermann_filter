@@ -1,6 +1,6 @@
 #include "config_parser.h"
 
-using namespace config_parser;
+using namespace cev_localization::config_parser;
 
 Config ConfigParser::loadConfig(const std::string& filePath) {
     YAML::Node configNode = YAML::LoadFile(filePath);
@@ -10,6 +10,7 @@ Config ConfigParser::loadConfig(const std::string& filePath) {
     // Parse general settings
     config.time_step = configNode["odometry_settings"]["time_step"].as<double>();
     config.odometry_topic = configNode["odometry_settings"]["topic"].as<std::string>();
+    config.main_model = configNode["main_model"].as<std::string>();
 
     // Parse sensors
     for (const auto& sensorEntry: configNode["sensors"]) {

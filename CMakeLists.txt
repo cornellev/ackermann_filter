@@ -23,21 +23,10 @@ find_package(yaml-cpp REQUIRED)
 
 find_package(cev_msgs REQUIRED)
 
-add_library(estimator
-    src/estimator.cpp
-    include/estimator.h
-)
-ament_target_dependencies(estimator Eigen3)
+add_subdirectory(cev_kalman_filter)
 
-add_library(model
-    src/model.cpp
-    include/model.h
-)
-
-add_library(sensor
-    src/sensor.cpp
-    include/sensor.h
-)
+include_directories(include)
+include_directories(cev_kalman_filter/include)
 
 add_library(ros_sensor
     src/ros_sensor.cpp
@@ -49,30 +38,25 @@ add_library(config_parser
     include/config_parser.h
 )
 
-# add_library(updateable
-#     src/updateable.cpp
-#     include/updateable.h
-# )
+add_library(std_ros_sensors
+    src/std_ros_sensors.cpp
+    include/std_ros_sensors.h
+)
 
-# add_library(updater
-#     src/updater.cpp
-#     include/updater.h
-# )
-
-include_directories(estimator include)
-include_directories(model include)
-include_directories(sensor include)
 include_directories(ros_sensor include)
 include_directories(config_parser include)
-# include_directories(updateable include)
-# include_directories(updater include)
+include_directories(std_ros_sensors include)
 
 target_link_libraries(config_parser yaml-cpp)
 ament_target_dependencies(config_parser yaml-cpp)
 
+target_link_libraries(std_ros_sensors)
+ament_target_dependencies(std_ros_sensors sensor_msgs std_msgs cev_msgs nav_msgs tf2 tf2_ros tf2_geometry_msgs)
+
 add_executable(ackermann_ekf src/ackermann_ekf.cpp)
+
 # target_link_libraries(ackermann_ekf estimator model sensor ros_sensor updateable updater)
-target_link_libraries(ackermann_ekf estimator model sensor ros_sensor yaml-cpp config_parser)
+target_link_libraries(ackermann_ekf ros_sensor yaml-cpp config_parser std_ros_sensors cev_kalman_filter)
 ament_target_dependencies(ackermann_ekf rclcpp sensor_msgs std_msgs Eigen3 cev_msgs tf2 tf2_ros tf2_geometry_msgs nav_msgs)
 
 install(TARGETS
