@@ -7,6 +7,7 @@
 #include <tf2/LinearMath/Matrix3x3.h>
 
 #include "ros_sensor.h"
+#include "estimator.h"
 
 using namespace ckf;
 
@@ -27,8 +28,7 @@ namespace cev_localization {
         public:
             IMUSensor(std::string topic, V state, M covariance,
                 std::vector<std::shared_ptr<Model>> dependents,
-                std::vector<bool> state_mask = {false, false, false, false, false, true, false,
-                    false, false, false, false, false, true, true, false, false, false, false},
+                std::vector<std::string> state_mask = {"d2_x", "d2_y", "yaw"},
                 bool relative = true);
 
             StatePackage msg_update(sensor_msgs::msg::Imu::SharedPtr msg);
@@ -38,8 +38,7 @@ namespace cev_localization {
         public:
             RawSensor(std::string topic, V state, M covariance,
                 std::vector<std::shared_ptr<Model>> dependents,
-                std::vector<bool> state_mask = {false, false, false, false, false, false, true,
-                    false, false, false, false, false, false, false, false, true, false, false});
+                std::vector<std::string> state_mask = {"d_x", "d_y", "tau"});
 
             StatePackage msg_update(cev_msgs::msg::SensorCollect::SharedPtr msg);
         };

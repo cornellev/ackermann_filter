@@ -45,7 +45,7 @@ public:
 
             if (mod.type == "ACKERMANN") {
                 update_models[name] = std::make_shared<ckf::standard_models::AckermannModel>(
-                    V::Zero(), M::Identity() * .1, M::Identity() * .1, .185);
+                    V::Zero(), M::Identity() * .1, M::Identity() * .1, .185, mod.state_mask);
             } else {
                 RCLCPP_ERROR(this->get_logger(), "Unknown model type: `%s`", mod.type.c_str());
                 throw std::runtime_error("Unknown model type");
@@ -75,7 +75,7 @@ public:
 
             if (sen.type == "IMU") {
                 auto sensor = std::make_shared<standard_ros_sensors::IMUSensor>(sen.topic,
-                    V::Zero(), M::Identity() * .1, models, sen.state);
+                    V::Zero(), M::Identity() * .1, models, sen.state_mask);
 
                 sensors[name] = sensor;
 
@@ -86,7 +86,7 @@ public:
 
             } else if (sen.type == "RAW") {
                 auto sensor = std::make_shared<standard_ros_sensors::RawSensor>(sen.topic,
-                    V::Zero(), M::Identity() * .1, models, sen.state);
+                    V::Zero(), M::Identity() * .1, models, sen.state_mask);
 
                 sensors[name] = sensor;
 

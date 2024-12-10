@@ -1,53 +1,31 @@
 # General settings for the Kalman Filter node output
 odometry_settings:
-  time_step: 1.0  # Time step for the filter publish (in seconds)
+  time_step: 1.0 # Time step for the filter publish (in seconds)
   topic: "/odometry/meow" # Topic to publish the odometry data
-  main_model: "ackermann"  # Main model to use for the filter
+  main_model: "ackermann" # Main model to use for the filter
 
 # Define the sensors used by the node
 sensors:
   witmotion_imu:
-    type: "IMU"  # Sensor type (IMU, GPS, etc.)
-    topic: "/imu"  # Topic to subscribe to
+    type: "IMU" # Sensor type (IMU, GPS, etc.)
+    topic: "/imu" # Topic to subscribe to
     frame_id: "imu_frame" # Frame ID for the sensor data
-    
-    state: [
-        false, false, false,
-        false, false, true,
-        false, false, false,
-        false, false, false,
-        true,  true,  false,
-        false, false, false
-    ]  # State variables for the sensor. Each should be true or false
+    state: ["d2_x", "d2_y", "yaw"]
     covariance_multiplier: 1.0 # Multiplier to multiply message covariance by
-    estimator_models: [
-        ackermann,
-    ] # List of strings representing models to use for the sensor data by name
-  
+    estimator_models: [ackermann] # List of strings representing models to use for the sensor data by name
+
   encoder_odometry:
-    type: "RAW"  # Sensor type (IMU, GPS, etc.)
-    topic: "/sensor_collect"  # Topic to subscribe to
+    type: "RAW" # Sensor type (IMU, GPS, etc.)
+    topic: "/sensor_collect" # Topic to subscribe to
     frame_id: "odom_frame" # Frame ID for the sensor data
-    
-    state: [
-        false, false, false,
-        false, false, false,
-        true,  false, false,
-        false, false, false,
-        false, false, false,
-        true,  false, false
-    ]  # State variables for the sensor. Each should be true or false
+
+    state: ["d_x", "tau"]
     covariance_multiplier: 2.0 # Multiplier to multiply message covariance by
-    estimator_models: [
-        ackermann,
-    ] # List of strings representing models to use for the sensor data by name
+    estimator_models: [ackermann] # List of strings representing models to use for the sensor data by name
 
 # Define update models with their parameters
 update_models:
-    ackermann:
-        type: "ACKERMANN"  # Model type (ACKERMANN, CARTESIAN, etc.)
-        parameters: [
-            # parameter_1,
-            # parameter_2,
-            # ...
-        ]  # Parameters for the model
+  ackermann:
+    type: "ACKERMANN" # Model type (ACKERMANN, CARTESIAN, etc.)
+    state: ["x", "y", "d_x", "d_y", "yaw", "tau"]
+    estimator_models: []

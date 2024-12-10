@@ -2,6 +2,18 @@
 
 using namespace cev_localization::config_parser;
 
+// State is an 18-element vector of bools
+/*
+State: [
+  x,      y,      z,
+  roll,   pitch,  yaw,
+  x'      y',     z',
+  roll',  pitch', yaw',
+  x'',    y'',    z'',
+  tau,    tau',   tau''
+]
+*/
+
 Config ConfigParser::loadConfig(const std::string& filePath) {
     YAML::Node configNode = YAML::LoadFile(filePath);
 
@@ -33,9 +45,8 @@ cev_localization::config_parser::Sensor ConfigParser::parseSensor(const YAML::No
     sensor.topic = sensorNode["topic"].as<std::string>();
     sensor.frame_id = sensorNode["frame_id"].as<std::string>();
 
-    // Parse state as a vector of bools
     for (const auto& val: sensorNode["state"]) {
-        sensor.state.push_back(val.as<bool>());
+        sensor.state_mask.push_back(val.as<std::string>());
     }
 
     // Parse covariance_multiplier
@@ -52,8 +63,15 @@ cev_localization::config_parser::Sensor ConfigParser::parseSensor(const YAML::No
 UpdateModel ConfigParser::parseUpdateModel(const YAML::Node& modelNode) {
     UpdateModel model;
     model.type = modelNode["type"].as<std::string>();
-    for (const auto& param: modelNode["parameters"]) {
-        model.parameters.push_back(param.as<std::string>());
+
+    for (const auto& val: modelNode["state"]) {
+        model.state_mask.push_back(val.as<std::string>());
     }
+
+    // Parse estimator_models
+    for (const auto& mod: modelNode["estimator_models"]) {
+        model.estimator_models.push_back(mod.as<std::string>());
+    }
+
     return model;
 }

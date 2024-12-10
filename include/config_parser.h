@@ -6,20 +6,23 @@
 #include <unordered_map>
 #include <utility>
 
+#include "estimator.h"
+
 namespace cev_localization {
     namespace config_parser {
         struct Sensor {
             std::string type;
             std::string topic;
             std::string frame_id;
-            std::vector<bool> state;
+            std::vector<std::string> state_mask;
             double covariance_multiplier;
             std::vector<std::string> estimator_models;
         };
 
         struct UpdateModel {
             std::string type;
-            std::vector<std::string> parameters;
+            std::vector<std::string> state_mask;
+            std::vector<std::string> estimator_models;
         };
 
         struct Config {
