@@ -19,13 +19,15 @@ using std::placeholders::_1;
 using namespace ckf;
 using namespace cev_localization;
 
-class AckermannEkfNode : public rclcpp::Node {
+class LocalizationNode : public rclcpp::Node {
 public:
-    AckermannEkfNode(): Node("AckermannEkfNode") {
-        RCLCPP_INFO(this->get_logger(), "Initializing Ackermann EKF Node");
+    LocalizationNode(): Node("CEVLocalizationNode") {
+        RCLCPP_INFO(this->get_logger(), "Initializing CEV Localization Node");
 
         this->declare_parameter<std::string>("config_file", "config/ekf_real.yml");
         std::string config_file_path = this->get_parameter("config_file").as_string();
+
+        RCLCPP_INFO(this->get_logger(), "Parsing config file at %s", config_file_path.c_str());
 
         // Load the YAML configurations
         config_parser::Config config = config_parser::ConfigParser::loadConfig(config_file_path);
@@ -37,7 +39,7 @@ public:
             config_parser::UpdateModel& mod = model.second;
 
             if (update_models.find(name) != update_models.end()) {
-                RCLCPP_ERROR(this->get_logger(), "Model %s already exists", name.c_str());
+                RCLCPP_ERROR(this->get_logger(), "Model `%s` already exists", name.c_str());
                 throw std::runtime_error("Model already exists");
             }
 
@@ -45,7 +47,7 @@ public:
                 update_models[name] = std::make_shared<ckf::standard_models::AckermannModel>(
                     V::Zero(), M::Identity() * .1, M::Identity() * .1, .185);
             } else {
-                RCLCPP_ERROR(this->get_logger(), "Unknown model type: %s", mod.type.c_str());
+                RCLCPP_ERROR(this->get_logger(), "Unknown model type: `%s`", mod.type.c_str());
                 throw std::runtime_error("Unknown model type");
             }
         }
@@ -55,7 +57,7 @@ public:
             config_parser::Sensor& sen = sensor.second;
 
             if (sensors.find(name) != sensors.end()) {
-                RCLCPP_ERROR(this->get_logger(), "Sensor %s already exists", name.c_str());
+                RCLCPP_ERROR(this->get_logger(), "Sensor `%s` already exists", name.c_str());
                 throw std::runtime_error("Sensor already exists");
             }
 
@@ -63,7 +65,8 @@ public:
             std::vector<std::shared_ptr<ckf::Model>> models;
             for (std::string& model_name: sen.estimator_models) {
                 if (update_models.find(model_name) == update_models.end()) {
-                    RCLCPP_ERROR(this->get_logger(), "Model %s does not exist", model_name.c_str());
+                    RCLCPP_ERROR(this->get_logger(), "Model `%s` does not exist",
+                        model_name.c_str());
                     throw std::runtime_error("Model does not exist");
                 } else {
                     models.push_back(update_models[model_name]);
@@ -92,15 +95,23 @@ public:
                         sensor->msg_handler(msg);
                     });
             } else {
-                RCLCPP_ERROR(this->get_logger(), "Unknown sensor type: %s", sen.type.c_str());
+                RCLCPP_ERROR(this->get_logger(), "Unknown sensor type: `%s`", sen.type.c_str());
                 throw std::runtime_error("Unknown sensor type");
             }
         }
 
+        if (update_models.find(config.main_model) == update_models.end()) {
+            RCLCPP_ERROR(this->get_logger(), "Main model `%s` does not exist",
+                config.main_model.c_str());
+            throw std::runtime_error("Main model does not exist");
+        }
+
+        RCLCPP_INFO(this->get_logger(), "Configuration file parsed! Finishing initialization.");
+
         main_model = update_models[config.main_model].get();
 
         timer = this->create_wall_timer(std::chrono::milliseconds(10),
-            std::bind(&AckermannEkfNode::timer_callback, this));
+            std::bind(&LocalizationNode::timer_callback, this));
 
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
         odom_pub = this->create_publisher<nav_msgs::msg::Odometry>(config.odometry_topic, 1);
@@ -179,7 +190,7 @@ private:
 
 int main(int argc, char* argv[]) {
     rclcpp::init(argc, argv);
-    rclcpp::spin(std::make_shared<AckermannEkfNode>());
+    rclcpp::spin(std::make_shared<LocalizationNode>());
     rclcpp::shutdown();
     return 0;
 }
