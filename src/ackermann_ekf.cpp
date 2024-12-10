@@ -132,16 +132,17 @@ private:
         double time = get_clock()->now().seconds();
 
         // model->update(time);
-        // V state = model->get_state();
+        V state = main_model->get_state();
+        M covariance = main_model->get_covariance();
 
-        std::pair<V, M> prediction = main_model->predict(time);
-        V state = prediction.first;
-        M covariance = prediction.second;
+        // std::pair<V, M> prediction = main_model->predict(time);
+        // V state = prediction.first;
+        // M covariance = prediction.second;
 
         nav_msgs::msg::Odometry odom_msg;
         odom_msg.header.stamp = this->now();
         odom_msg.header.frame_id = "odom";
-        odom_msg.child_frame_id = "base_link";
+        odom_msg.child_frame_id = "meow_link";
 
         odom_msg.pose.pose.position.x = state[ckf::state::x];
         odom_msg.pose.pose.position.y = state[ckf::state::y];

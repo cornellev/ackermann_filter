@@ -1,7 +1,7 @@
 # General settings for the Kalman Filter node output
 odometry_settings:
   time_step: 1.0  # Time step for the filter publish (in seconds)
-  topic: "/odometry/filtered" # Topic to publish the odometry data
+  topic: "/odometry/meow" # Topic to publish the odometry data
   main_model: "ackermann"  # Main model to use for the filter
 
 # Define the sensors used by the node
