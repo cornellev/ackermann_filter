@@ -18,14 +18,14 @@ ENV ROS_DISTRO=humble
 
 # Initialize rosdep and update for the current ROS distro
 RUN rosdep init && \
-  rosdep update --rosdistro $ROS_DISTRO
+    rosdep update --rosdistro $ROS_DISTRO
 
 # Add and update colcon mixins and metadata
 RUN colcon mixin add default \
-      https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && \
+    https://raw.githubusercontent.com/colcon/colcon-mixin-repository/master/index.yaml && \
     colcon mixin update && \
     colcon metadata add default \
-      https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml && \
+    https://raw.githubusercontent.com/colcon/colcon-metadata-repository/master/index.yaml && \
     colcon metadata update
 
 # Install ROS2 base packages specific to Humble distribution
@@ -48,6 +48,19 @@ COPY . /root/ws/tmp
 WORKDIR /root/ws
 
 RUN sudo apt update
+
+# Install dev tools
+RUN apt-get update
+RUN apt-get install -y curl
+RUN curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+RUN cat /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+RUN echo $'deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy main\n' \
+    $'deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy main\n' \
+    $'deb http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main\n' \
+    $'deb-src http://apt.llvm.org/jammy/ llvm-toolchain-jammy-19 main\n' \
+    | tee -a /etc/apt/sources.list
+RUN apt-get update
+RUN apt-get install -y clang-format clang-format-19
 
 RUN source /opt/ros/$ROS_DISTRO/setup.bash \
     && cd /root/ws \

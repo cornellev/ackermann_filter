@@ -27,10 +27,23 @@
                     }
                 }
             },
+            "[cpp]": {
+                "editor.defaultFormatter": "xaver.clang-format"
+            },
+            "[python]": {
+                "diffEditor.ignoreTrimWhitespace": false,
+                "gitlens.codeLens.symbolScopes": [
+                    "!Module"
+                ],
+                "editor.formatOnType": true,
+                "editor.wordBasedSuggestions": "off",
+                "editor.defaultFormatter": "ms-python.black-formatter"
+            },
             "extensions": [
                 "ms-iot.vscode-ros",
                 "ms-vscode.cpptools-extension-pack",
-                "ms-python.black-formatter"
+                "ms-python.black-formatter",
+                "xaver.clang-format"
             ]
         }
     },

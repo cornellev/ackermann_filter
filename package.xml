@@ -19,6 +19,9 @@
   <depend>nav_msgs</depend>
 
   <depend>cev_msgs</depend>
+  <depend>cev_kalman_filter</depend>
+  
+  <depend>yaml-cpp</depend>
 
 
   <test_depend>ament_lint_auto</test_depend>

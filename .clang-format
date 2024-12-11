@@ -1,0 +1,36 @@
+# CEV C++ setup
+---
+BasedOnStyle: Google
+IndentWidth: 4
+Language: Cpp
+UseTab: Never
+DerivePointerAlignment: false
+PointerAlignment: Left
+BreakStringLiterals: true
+ReflowComments: true
+ContinuationIndentWidth: 4
+ColumnLimit: 100
+AlignAfterOpenBracket: DontAlign
+AlignTrailingComments:
+  Kind: Always
+  OverEmptyLines: 2
+AlignOperands: Align
+BreakBeforeBinaryOperators: NonAssignment
+PenaltyBreakAssignment: 60
+PenaltyBreakOpenParenthesis: 50
+IndentCaseLabels: true
+AllowShortFunctionsOnASingleLine: Empty
+SortIncludes: false
+MacroBlockBegin: "^#if .*$"
+MacroBlockEnd: "^#endif$"
+AlignEscapedNewlines: Right
+IndentPPDirectives: BeforeHash
+IndentAccessModifiers: false
+AccessModifierOffset: -4
+SpaceBeforeRangeBasedForLoopColon: false
+SpaceBeforeCaseColon: false
+SpaceBeforeCtorInitializerColon: false
+SpaceAfterTemplateKeyword: false
+NamespaceIndentation: All
+FixNamespaceComments: false
+---

@@ -1,0 +1,37 @@
+# General settings for the Kalman Filter node output
+odometry_settings:
+  time_step: double  # Time step for the filter publish (in seconds)
+  topic: str # Topic to publish the odometry data
+
+# Define the sensors used by the node
+sensors:
+  sensor_name:
+    type: sensor_type  # Sensor type (IMU, GPS, etc.)
+    topic: str  # Topic to subscribe to
+    frame_id: str  # Frame ID for the sensor data
+    
+    state: [
+        x,      dx,     d2x,
+        y,      dy,     d2y,
+        z,      dz,     d2z,
+        roll,   droll,  d2roll,
+        pitch,  dpitch, d2pitch,
+        yaw,    dyaw,   d2yaw,
+        tau,    dtau,   d2tau
+    ]  # State variables for the sensor. Each should be true or false
+    covariance: [double]  # Covariance matrix for the sensor data
+    estimator_models: [
+        model_name_1,
+        model_name_2,
+        ...
+    ] # List of strings representing models to use for the sensor data by name
+
+# Define update models with their parameters
+update_models:
+    model_name:
+        type: model_type  # Model type (ACKERMANN, CARTESIAN, etc.)
+        parameters: [
+            parameter_1,
+            parameter_2,
+            ...
+        ]  # Parameters for the model

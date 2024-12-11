@@ -2,329 +2,201 @@
 #include <eigen3/Eigen/Dense>
 #include <cmath>
 
-#include <tf2/LinearMath/Quaternion.h>
-#include <tf2/LinearMath/Matrix3x3.h>
-#include <tf2_ros/transform_broadcaster.h>
-
 #include "model.h"
 #include "ros_sensor.h"
+#include "config_parser.h"
+#include "model.h"
+#include "sensor.h"
+#include "standard_models.h"
+#include "std_ros_sensors.h"
 
-#include "sensor_msgs/msg/imu.hpp"
-#include "nav_msgs/msg/odometry.hpp"
-#include "cev_msgs/msg/sensor_collect.hpp"
+#include <tf2_ros/transform_broadcaster.h>
 
 #include <iostream>
 
 using std::placeholders::_1;
 
-class AckermannModel : public Model {
-  // State: [x, y, x', y', yaw, steering_angle]
+using namespace ckf;
+using namespace cev_localization;
 
-  private:
-    double wheelbase;
-    M multiplier = M::Zero();
+class LocalizationNode : public rclcpp::Node {
+public:
+    LocalizationNode(): Node("CEVLocalizationNode") {
+        RCLCPP_INFO(this->get_logger(), "Initializing CEV Localization Node");
 
-  public:
-    AckermannModel(
-      V state,
-      M covariance,
-      M process_covariance,
-      double wheelbase
-    ) : Model(state, covariance, process_covariance) {
-      this->wheelbase = wheelbase;
+        this->declare_parameter<std::string>("config_file", "config/ekf_real.yml");
+        std::string config_file_path = this->get_parameter("config_file").as_string();
 
-      multiplier(x__, x__) = 1;
-      multiplier(y__, y__) = 1;
-      multiplier(d_x__, d_x__) = 1;
-      multiplier(d_y__, d_y__) = 1;
-      multiplier(yaw__, yaw__) = 1;
-      multiplier(tau__, tau__) = 1;
-      // multiplier(d_tau__, d_tau__) = 1;
+        RCLCPP_INFO(this->get_logger(), "Parsing config file at %s", config_file_path.c_str());
+
+        // Load the YAML configurations
+        config = config_parser::ConfigParser::loadConfig(config_file_path);
+
+        std::unordered_map<std::string, std::shared_ptr<ckf::Model>> update_models;
+
+        for (std::pair<const std::string, config_parser::UpdateModel> model: config.update_models) {
+            std::string name = model.first;
+            config_parser::UpdateModel& mod = model.second;
+
+            if (update_models.find(name) != update_models.end()) {
+                RCLCPP_ERROR(this->get_logger(), "Model `%s` already exists", name.c_str());
+                throw std::runtime_error("Model already exists");
+            }
+
+            if (mod.type == "ACKERMANN") {
+                update_models[name] = std::make_shared<ckf::standard_models::AckermannModel>(
+                    V::Zero(), M::Identity() * .1, M::Identity() * .1, .185, mod.state_mask);
+            } else if (mod.type == "CARTESIAN") {
+                update_models[name] = std::make_shared<ckf::standard_models::CartesianModel>(
+                    V::Zero(), M::Identity() * .1, M::Identity() * .1, mod.state_mask);
+            } else {
+                RCLCPP_ERROR(this->get_logger(), "Unknown model type: `%s`", mod.type.c_str());
+                throw std::runtime_error("Unknown model type");
+            }
+        }
+
+        for (std::pair<const std::string, config_parser::Sensor> sensor: config.sensors) {
+            std::string name = sensor.first;
+            config_parser::Sensor& sen = sensor.second;
+
+            if (sensors.find(name) != sensors.end()) {
+                RCLCPP_ERROR(this->get_logger(), "Sensor `%s` already exists", name.c_str());
+                throw std::runtime_error("Sensor already exists");
+            }
+
+            // Create array for models to bind to
+            std::vector<std::shared_ptr<ckf::Model>> models;
+            for (std::string& model_name: sen.estimator_models) {
+                if (update_models.find(model_name) == update_models.end()) {
+                    RCLCPP_ERROR(this->get_logger(), "Model `%s` does not exist",
+                        model_name.c_str());
+                    throw std::runtime_error("Model does not exist");
+                } else {
+                    models.push_back(update_models[model_name]);
+                }
+            }
+
+            if (sen.type == "IMU") {
+                auto sensor = std::make_shared<standard_ros_sensors::IMUSensor>(sen.topic,
+                    V::Zero(), M::Identity() * .1, models, sen.state_mask);
+
+                sensors[name] = sensor;
+
+                sensor_subscribers[name] = this->create_subscription<sensor_msgs::msg::Imu>(
+                    sen.topic, 10, [sensor](const sensor_msgs::msg::Imu::SharedPtr msg) {
+                        sensor->msg_handler(msg);
+                    });
+
+            } else if (sen.type == "RAW") {
+                auto sensor = std::make_shared<standard_ros_sensors::RawSensor>(sen.topic,
+                    V::Zero(), M::Identity() * .1, models, sen.state_mask);
+
+                sensors[name] = sensor;
+
+                sensor_subscribers[name] = this->create_subscription<cev_msgs::msg::SensorCollect>(
+                    sen.topic, 10, [sensor](const cev_msgs::msg::SensorCollect::SharedPtr msg) {
+                        sensor->msg_handler(msg);
+                    });
+            } else {
+                RCLCPP_ERROR(this->get_logger(), "Unknown sensor type: `%s`", sen.type.c_str());
+                throw std::runtime_error("Unknown sensor type");
+            }
+        }
+
+        if (update_models.find(config.main_model) == update_models.end()) {
+            RCLCPP_ERROR(this->get_logger(), "Main model `%s` does not exist",
+                config.main_model.c_str());
+            throw std::runtime_error("Main model does not exist");
+        }
+
+        RCLCPP_INFO(this->get_logger(), "Configuration file parsed! Finishing initialization.");
+
+        main_model = update_models[config.main_model].get();
+
+        timer = this->create_wall_timer(std::chrono::milliseconds((int) (config.time_step * 1000.0)),
+            std::bind(&LocalizationNode::timer_callback, this));
+
+        tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+        odom_pub = this->create_publisher<nav_msgs::msg::Odometry>(config.odometry_topic, 1);
     }
 
-    V update_step(double time) {
-      double dt = time - most_recent_update_time;
+private:
+    config_parser::Config config;
 
-      double d_yaw = d_x_ * (sin(tau_) / wheelbase) * dt;
-      // double new_yaw = yaw_ + ((d_yaw_ + d_yaw) / 2.0);
-      double new_yaw = yaw_ + d_yaw;
+    std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> sensor_subscribers;
+    std::unordered_map<std::string, std::shared_ptr<ckf::Model>> update_models;
+    std::unordered_map<std::string, std::shared_ptr<ckf::Sensor>> sensors;
 
-      double new_d_x = d_x_ + d2_x_ * dt;
-      double new_d_y = d_y_ + d2_y_ * dt;
-      // double new_d_tau = d_tau_ + d2_tau_ * dt;
-      double new_tau = tau_ + d_tau_ * dt;
-
-      double new_x = x_ + d_x_ * cos(yaw_ + tau_) * dt;
-      double new_y = y_ + d_x_ * sin(yaw_ + tau_) * dt;
-
-      V new_state = this->state;
-
-      new_state[x__] = new_x;
-      new_state[y__] = new_y;
-      new_state[d_x__] = new_d_x;
-      new_state[d_y__] = new_d_y;
-      new_state[yaw__] = new_yaw;
-      // new_state[d_yaw__] = d_yaw; 
-      new_state[tau__] = new_tau;
-      // new_state[d_tau__] = new_d_tau;
-
-      return new_state;
-    }
-
-    M update_jacobian(double dt) {
-      M F_k = MatrixXd::Identity(S, S);
-
-      F_k(x__, d_x__) = dt * cos(yaw_ + tau_);
-      F_k(x__, yaw__) = -dt * d_x_ * sin(yaw_ + tau_);
-      F_k(x__, tau__) = -dt * d_x_ * sin(yaw_ + tau_);
-
-      F_k(y__, d_x__) = dt * sin(yaw_ + tau_);
-      F_k(y__, yaw__) = dt * d_x_ * cos(yaw_ + tau_);
-      F_k(y__, tau__) = dt * d_x_ * cos(yaw_ + tau_);
-
-      F_k(yaw__, d_x__) = dt * sin(tau_) / wheelbase;
-      F_k(yaw__, tau__) = dt * d_x_ * cos(tau_) / wheelbase;
-
-      F_k(d_x__, d2_x__) = dt;
-      F_k(d_y__, d2_y__) = dt;
-
-      // F_k(tau__, d_tau__) = dt;
-      // F_k(d_tau__, d2_tau__) = dt;
-
-      return F_k;
-    }
-
-    M state_matrix_multiplier() {
-      return multiplier;
-    }
-};
-
-class IMUSensor : public RosSensor<sensor_msgs::msg::Imu> {
-  private:
-    double pos_mod(double angle) {
-      return fmod(fmod(angle, 2 * M_PI) + 2 * M_PI, 2 * M_PI);
-    }
-
-  protected:
-    bool initialized = false;
-    bool relative = true;
-
-    double initial_yaw;
-    double last_reported_yaw = 0;
-    double last_sensor_raw_yaw = 0;
-
-  public:
-    IMUSensor(
-      V state,
-      M covariance, 
-      std::vector<std::shared_ptr<Model>> dependents,
-      bool relative = true
-    ) : RosSensor<sensor_msgs::msg::Imu>(
-        state, 
-        covariance,
-        dependents
-      ) 
-    {
-      multiplier(d2_x__, d2_x__) = 1.0;
-      multiplier(d2_y__, d2_y__) = 1.0;
-      multiplier(yaw__, yaw__) = 1.0;
-
-      this->relative = relative;
-    }
-
-    StatePackage msg_update(sensor_msgs::msg::Imu::SharedPtr msg) {
-      this->name = "IMU";
-      StatePackage estimate = get_internals();
-
-      estimate.update_time = msg->header.stamp.sec + (msg->header.stamp.nanosec / 1e9);
-
-      estimate.state[d2_x__] = msg->linear_acceleration.x;
-      estimate.state[d2_y__] = msg->linear_acceleration.y;
-
-      // Get yaw from quaternion
-      tf2::Quaternion q(
-        msg->orientation.x,
-        msg->orientation.y,
-        msg->orientation.z,
-        msg->orientation.w
-      );
-      tf2::Matrix3x3 m(q);
-      double roll, pitch, yaw;
-      m.getRPY(roll, pitch, yaw);
-
-      if (relative && !initialized) {
-        last_sensor_raw_yaw = yaw;
-        last_reported_yaw = 0.0;
-        initialized = true;
-
-        estimate.state[yaw__] = 0.0;
-        return estimate;
-      }
-
-      double modded_yaw_diff = fmod(yaw - last_sensor_raw_yaw, 2 * M_PI);
-
-      if (modded_yaw_diff > M_PI) {
-        modded_yaw_diff -= 2 * M_PI;
-      } else if (modded_yaw_diff < -M_PI) {
-        modded_yaw_diff += 2 * M_PI;
-      }
-
-      last_reported_yaw += modded_yaw_diff;
-      last_sensor_raw_yaw = yaw;
-
-      estimate.state[yaw__] = last_reported_yaw;
-
-      return estimate;
-    }
-};
-
-class OdomSensor : public RosSensor<cev_msgs::msg::SensorCollect> {
-  public:
-    OdomSensor(
-      V state, 
-      M covariance, 
-      std::vector<std::shared_ptr<Model>> dependents
-    ) : RosSensor<cev_msgs::msg::SensorCollect>(
-      state, 
-      covariance,
-      dependents
-    ) {
-      multiplier(d_x__, d_x__) = 1;
-      multiplier(tau__, tau__) = 1;
-    }
-
-    StatePackage msg_update(cev_msgs::msg::SensorCollect::SharedPtr msg) {
-      StatePackage estimate = get_internals();
-
-      estimate.update_time = msg->timestamp;
-
-      estimate.state[d_x__] = msg->velocity;
-      estimate.state[tau__] = msg->steering_angle;
-
-      return estimate;
-    }
-};
-
-class AckermannEkfNode : public rclcpp::Node {
-  public:
-    AckermannEkfNode() : Node("AckermannEkfNode") {
-      V start_state = V::Zero();
-
-      model->force_state(start_state);
-
-      imu_sub = this->create_subscription<sensor_msgs::msg::Imu>(
-        "imu", 1, std::bind(&IMUSensor::msg_handler, &imu, _1)
-      );
-
-      odom_sub = this->create_subscription<cev_msgs::msg::SensorCollect>(
-        "sensor_collect", 1, std::bind(&OdomSensor::msg_handler, &odom, _1)
-      );
-
-      timer = this->create_wall_timer(
-        std::chrono::milliseconds(10), std::bind(&AckermannEkfNode::timer_callback, this)
-      );
-
-      tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
-
-      odom_pub = this->create_publisher<nav_msgs::msg::Odometry>("odometry/filtered", 1);
-    }
-
-    void timer_callback() {
-      double time = get_clock()->now().seconds();
-      
-      // model->update(time);
-      // V state = model->get_state();
-
-      std::pair<V, M> prediction = model->predict(time);
-      V state = prediction.first;
-      M covariance = prediction.second;
-
-      nav_msgs::msg::Odometry odom_msg;
-      odom_msg.header.stamp = this->now();
-      odom_msg.header.frame_id = "odom";
-      odom_msg.child_frame_id = "base_link";
-
-      odom_msg.pose.pose.position.x = state[x__];
-      odom_msg.pose.pose.position.y = state[y__];
-      odom_msg.pose.pose.position.z = 0.0;
-
-      odom_msg.pose.covariance[0] = covariance(x__, x__);
-      odom_msg.pose.covariance[7] = covariance(y__, y__);
-      odom_msg.pose.covariance[35] = covariance(yaw__, yaw__);
-
-      tf2::Quaternion q = tf2::Quaternion();
-      q.setRPY(0, 0, state[yaw__]);
-      q = q.normalized();
-      odom_msg.pose.pose.orientation.x = q.x();
-      odom_msg.pose.pose.orientation.y = q.y();
-      odom_msg.pose.pose.orientation.z = q.z();
-      odom_msg.pose.pose.orientation.w = q.w();
-
-      odom_msg.twist.twist.linear.x = state[d_x__];
-      odom_msg.twist.twist.linear.y = state[d_y__];
-      odom_msg.twist.twist.angular.z = state[d_yaw__];
-
-      odom_msg.twist.covariance[0] = covariance(d_x__, d_x__);
-      odom_msg.twist.covariance[7] = covariance(d_y__, d_y__);
-      odom_msg.twist.covariance[35] = covariance(d_yaw__, d_yaw__);
-
-      odom_pub->publish(odom_msg);
-
-      geometry_msgs::msg::TransformStamped transformStamped;
-
-      transformStamped.header.stamp = this->now();
-      transformStamped.header.frame_id = "odom";
-      transformStamped.child_frame_id = "base_link";
-
-      transformStamped.transform.translation.x = state[x__];
-      transformStamped.transform.translation.y = state[y__];
-      transformStamped.transform.translation.z = state[z__];
-
-      transformStamped.transform.rotation.x = q.x();
-      transformStamped.transform.rotation.y = q.y();
-      transformStamped.transform.rotation.z = q.z();
-      transformStamped.transform.rotation.w = q.w();
-
-      tf_broadcaster_->sendTransform(transformStamped);
-    }
-
-  private:
-    rclcpp::Subscription<sensor_msgs::msg::Imu>::SharedPtr imu_sub;
-    rclcpp::Subscription<cev_msgs::msg::SensorCollect>::SharedPtr odom_sub;
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
-
-    // Wall clock for publishing ackermann model state
     rclcpp::TimerBase::SharedPtr timer;
-
-    // Odometry message publisher
     rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub;
 
-    std::shared_ptr<AckermannModel> model = 
-      std::make_shared<AckermannModel>(
-        AckermannModel(
-          V::Zero(),
-          M::Identity() * .1,
-          M::Identity() * .1,
-          .185
-        )
-    );
+    ckf::Model* main_model;
 
-    IMUSensor imu = IMUSensor(
-      V::Zero(),
-      M::Identity() * .1,
-      {model}
-    );
+    void timer_callback() {
+        double time = get_clock()->now().seconds();
 
-    OdomSensor odom = OdomSensor(
-      V::Zero(),
-      M::Identity() * .1,
-      {model}
-    );
+        // model->update(time);
+        V state = main_model->get_state();
+        M covariance = main_model->get_covariance();
+
+        // std::pair<V, M> prediction = main_model->predict(time);
+        // V state = prediction.first;
+        // M covariance = prediction.second;
+
+        nav_msgs::msg::Odometry odom_msg;
+        odom_msg.header.stamp = this->now();
+        odom_msg.header.frame_id = config.odom_frame;
+        odom_msg.child_frame_id = config.base_link_frame;
+
+        odom_msg.pose.pose.position.x = state[ckf::state::x];
+        odom_msg.pose.pose.position.y = state[ckf::state::y];
+        odom_msg.pose.pose.position.z = 0.0;
+
+        odom_msg.pose.covariance[0] = covariance(ckf::state::x, ckf::state::x);
+        odom_msg.pose.covariance[7] = covariance(ckf::state::y, ckf::state::y);
+        odom_msg.pose.covariance[35] = covariance(ckf::state::yaw, ckf::state::yaw);
+
+        tf2::Quaternion q = tf2::Quaternion();
+        q.setRPY(0, 0, state[ckf::state::yaw]);
+        q = q.normalized();
+        odom_msg.pose.pose.orientation.x = q.x();
+        odom_msg.pose.pose.orientation.y = q.y();
+        odom_msg.pose.pose.orientation.z = q.z();
+        odom_msg.pose.pose.orientation.w = q.w();
+
+        odom_msg.twist.twist.linear.x = state[ckf::state::d_x];
+        odom_msg.twist.twist.linear.y = state[ckf::state::d_y];
+        odom_msg.twist.twist.angular.z = state[ckf::state::d_yaw];
+
+        odom_msg.twist.covariance[0] = covariance(ckf::state::d_x, ckf::state::d_x);
+        odom_msg.twist.covariance[7] = covariance(ckf::state::d_y, ckf::state::d_y);
+        odom_msg.twist.covariance[35] = covariance(ckf::state::d_yaw, ckf::state::d_yaw);
+
+        odom_pub->publish(odom_msg);
+
+        geometry_msgs::msg::TransformStamped transformStamped;
+
+        transformStamped.header.stamp = this->now();
+        transformStamped.header.frame_id = config.odom_frame;
+        transformStamped.child_frame_id = config.base_link_frame;
+
+        transformStamped.transform.translation.x = state[ckf::state::x];
+        transformStamped.transform.translation.y = state[ckf::state::y];
+        transformStamped.transform.translation.z = state[ckf::state::z];
+
+        transformStamped.transform.rotation.x = q.x();
+        transformStamped.transform.rotation.y = q.y();
+        transformStamped.transform.rotation.z = q.z();
+        transformStamped.transform.rotation.w = q.w();
+
+        tf_broadcaster_->sendTransform(transformStamped);
+    }
 };
 
-int main(int argc, char *argv[]) {
-  rclcpp::init(argc, argv);
-  rclcpp::spin(std::make_shared<AckermannEkfNode>());
-  rclcpp::shutdown();
-  return 0;
+int main(int argc, char* argv[]) {
+    rclcpp::init(argc, argv);
+    rclcpp::spin(std::make_shared<LocalizationNode>());
+    rclcpp::shutdown();
+    return 0;
 }
