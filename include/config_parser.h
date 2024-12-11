@@ -5,6 +5,7 @@
 #include <vector>
 #include <unordered_map>
 #include <utility>
+#include <optional>
 
 #include "estimator.h"
 
@@ -13,7 +14,7 @@ namespace cev_localization {
         struct Sensor {
             std::string type;
             std::string topic;
-            std::string frame_id;
+            std::optional<std::string> frame_id;
             std::vector<std::string> state_mask;
             double covariance_multiplier;
             std::vector<std::string> estimator_models;
@@ -27,9 +28,15 @@ namespace cev_localization {
 
         struct Config {
             // General settings
-            double time_step;
-            std::string odometry_topic;
+            double time_step; // seconds
+
             std::string main_model;
+
+            // Odometry settings
+            std::string odometry_topic;
+            std::string base_link_frame;
+            std::string odom_frame;
+            
 
             // Sensors
             std::unordered_map<std::string, Sensor> sensors;

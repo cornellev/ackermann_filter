@@ -2,27 +2,47 @@
 
 using namespace cev_localization::config_parser;
 
-// State is an 18-element vector of bools
-/*
-State: [
-  x,      y,      z,
-  roll,   pitch,  yaw,
-  x'      y',     z',
-  roll',  pitch', yaw',
-  x'',    y'',    z'',
-  tau,    tau',   tau''
-]
-*/
-
 Config ConfigParser::loadConfig(const std::string& filePath) {
     YAML::Node configNode = YAML::LoadFile(filePath);
 
     Config config;
 
-    // Parse general settings
-    config.time_step = configNode["odometry_settings"]["time_step"].as<double>();
-    config.odometry_topic = configNode["odometry_settings"]["topic"].as<std::string>();
-    config.main_model = configNode["odometry_settings"]["main_model"].as<std::string>();
+    // Publish rate
+    try {
+        double rate = configNode["odometry_settings"]["publish_rate"].as<double>();
+        if (rate <= 0) {
+            throw std::runtime_error("Parameter `odometry_settings/publish_rate` must be greater than 0");
+        }
+        config.time_step = 1.0 / rate;
+    } catch (YAML::Exception& e) {
+        config.time_step = 0.01;
+    }
+
+    // Odometry settings
+    try {
+        config.base_link_frame = configNode["odometry_settings"]["base_link_frame"].as<std::string>();
+    } catch (YAML::Exception& e) {
+        config.base_link_frame = "base_link";
+    }
+
+    try {
+        config.odom_frame = configNode["odometry_settings"]["odom_frame"].as<std::string>();
+    } catch (YAML::Exception& e) {
+        config.odom_frame = "odom";
+    }
+
+    try {
+        config.odometry_topic = configNode["odometry_settings"]["topic"].as<std::string>();
+    } catch (YAML::Exception& e) {
+        config.odometry_topic = "odom";
+    }
+    
+    // Main model
+    try {
+        config.main_model = configNode["odometry_settings"]["main_model"].as<std::string>();
+    } catch (YAML::Exception& e) {
+        throw std::runtime_error("Parameter `odometry_settings/main_model` not defined");
+    }
 
     // Parse sensors
     for (const auto& sensorEntry: configNode["sensors"]) {
@@ -41,10 +61,25 @@ Config ConfigParser::loadConfig(const std::string& filePath) {
 
 cev_localization::config_parser::Sensor ConfigParser::parseSensor(const YAML::Node& sensorNode) {
     Sensor sensor;
-    sensor.type = sensorNode["type"].as<std::string>();
-    sensor.topic = sensorNode["topic"].as<std::string>();
-    sensor.frame_id = sensorNode["frame_id"].as<std::string>();
+    try {
+        sensor.type = sensorNode["type"].as<std::string>();
+    } catch (YAML::Exception& e) {
+        throw std::runtime_error("Sensor type not defined");
+    }
+    
+    try {
+        sensor.topic = sensorNode["topic"].as<std::string>();
+    } catch (YAML::Exception& e) {
+        throw std::runtime_error("Sensor topic not defined");
+    }
 
+    try {
+        sensor.frame_id = sensorNode["frame_id"].as<std::string>();
+    } catch (YAML::Exception& e) {
+        sensor.frame_id = std::nullopt;
+    }
+
+    // Parse state mask
     for (const auto& val: sensorNode["state"]) {
         sensor.state_mask.push_back(val.as<std::string>());
     }
@@ -62,8 +97,14 @@ cev_localization::config_parser::Sensor ConfigParser::parseSensor(const YAML::No
 
 UpdateModel ConfigParser::parseUpdateModel(const YAML::Node& modelNode) {
     UpdateModel model;
-    model.type = modelNode["type"].as<std::string>();
 
+    try {
+        model.type = modelNode["type"].as<std::string>();
+    } catch (YAML::Exception& e) {
+        throw std::runtime_error("Model type not defined");
+    }
+
+    // Parse state mask
     for (const auto& val: modelNode["state"]) {
         model.state_mask.push_back(val.as<std::string>());
     }

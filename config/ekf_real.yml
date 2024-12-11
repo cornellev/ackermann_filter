@@ -1,8 +1,12 @@
 # General settings for the Kalman Filter node output
 odometry_settings:
-  time_step: 1.0 # Time step for the filter publish (in seconds)
-  topic: "/odometry/meow" # Topic to publish the odometry data
+  publish_rate: 100 # Publish rate of the filter in Hz
+
   main_model: "ackermann" # Main model to use for the filter
+
+  topic: "/odometry/meow" # Topic to publish the odometry data
+  base_link: "base_link" # Base link frame ID
+  odom_frame: "odom" # Odometry frame ID
 
 # Define the sensors used by the node
 sensors:
@@ -10,7 +14,7 @@ sensors:
     type: "IMU" # Sensor type (IMU, GPS, etc.)
     topic: "/imu" # Topic to subscribe to
     frame_id: "imu_frame" # Frame ID for the sensor data
-    state: ["d2_x", "d2_y", "yaw"]
+    state: ["d2_x", "d2_y", "yaw"] # State variables to use from the sensor data
     covariance_multiplier: 1.0 # Multiplier to multiply message covariance by
     estimator_models: [ackermann] # List of strings representing models to use for the sensor data by name
 
@@ -19,7 +23,7 @@ sensors:
     topic: "/sensor_collect" # Topic to subscribe to
     frame_id: "odom_frame" # Frame ID for the sensor data
 
-    state: ["d_x", "tau"]
+    state: ["d_x", "tau"] # State variables to use from the sensor data
     covariance_multiplier: 2.0 # Multiplier to multiply message covariance by
     estimator_models: [ackermann] # List of strings representing models to use for the sensor data by name
 
@@ -27,5 +31,9 @@ sensors:
 update_models:
   ackermann:
     type: "ACKERMANN" # Model type (ACKERMANN, CARTESIAN, etc.)
-    state: ["x", "y", "d_x", "d_y", "yaw", "tau"]
+    state: ["x", "y", "d_x", "d_y", "yaw", "tau"] # State variables to use from the model in updates
     estimator_models: []
+  # cartesian:
+  #   type: "CARTESIAN" # Model type (ACKERMANN, CARTESIAN, etc.)
+  #   state: ["x", "y", "d_x", "d_y", "yaw", "d_yaw"] # State variables to use from the model in updates
+  #   estimator_models: []

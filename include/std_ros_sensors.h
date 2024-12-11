@@ -38,7 +38,7 @@ namespace cev_localization {
         public:
             RawSensor(std::string topic, V state, M covariance,
                 std::vector<std::shared_ptr<Model>> dependents,
-                std::vector<std::string> state_mask = {"d_x", "d_y", "tau"});
+                std::vector<std::string> state_mask = {"d_x", "tau"});
 
             StatePackage msg_update(cev_msgs::msg::SensorCollect::SharedPtr msg);
         };

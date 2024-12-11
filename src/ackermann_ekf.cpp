@@ -30,7 +30,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Parsing config file at %s", config_file_path.c_str());
 
         // Load the YAML configurations
-        config_parser::Config config = config_parser::ConfigParser::loadConfig(config_file_path);
+        config = config_parser::ConfigParser::loadConfig(config_file_path);
 
         std::unordered_map<std::string, std::shared_ptr<ckf::Model>> update_models;
 
@@ -46,6 +46,9 @@ public:
             if (mod.type == "ACKERMANN") {
                 update_models[name] = std::make_shared<ckf::standard_models::AckermannModel>(
                     V::Zero(), M::Identity() * .1, M::Identity() * .1, .185, mod.state_mask);
+            } else if (mod.type == "CARTESIAN") {
+                update_models[name] = std::make_shared<ckf::standard_models::CartesianModel>(
+                    V::Zero(), M::Identity() * .1, M::Identity() * .1, mod.state_mask);
             } else {
                 RCLCPP_ERROR(this->get_logger(), "Unknown model type: `%s`", mod.type.c_str());
                 throw std::runtime_error("Unknown model type");
@@ -110,7 +113,7 @@ public:
 
         main_model = update_models[config.main_model].get();
 
-        timer = this->create_wall_timer(std::chrono::milliseconds(10),
+        timer = this->create_wall_timer(std::chrono::milliseconds((int) (config.time_step * 1000.0)),
             std::bind(&LocalizationNode::timer_callback, this));
 
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
@@ -118,6 +121,8 @@ public:
     }
 
 private:
+    config_parser::Config config;
+
     std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> sensor_subscribers;
     std::unordered_map<std::string, std::shared_ptr<ckf::Model>> update_models;
     std::unordered_map<std::string, std::shared_ptr<ckf::Sensor>> sensors;
@@ -141,8 +146,8 @@ private:
 
         nav_msgs::msg::Odometry odom_msg;
         odom_msg.header.stamp = this->now();
-        odom_msg.header.frame_id = "odom";
-        odom_msg.child_frame_id = "meow_link";
+        odom_msg.header.frame_id = config.odom_frame;
+        odom_msg.child_frame_id = config.base_link_frame;
 
         odom_msg.pose.pose.position.x = state[ckf::state::x];
         odom_msg.pose.pose.position.y = state[ckf::state::y];
@@ -173,8 +178,8 @@ private:
         geometry_msgs::msg::TransformStamped transformStamped;
 
         transformStamped.header.stamp = this->now();
-        transformStamped.header.frame_id = "odom";
-        transformStamped.child_frame_id = "base_link";
+        transformStamped.header.frame_id = config.odom_frame;
+        transformStamped.child_frame_id = config.base_link_frame;
 
         transformStamped.transform.translation.x = state[ckf::state::x];
         transformStamped.transform.translation.y = state[ckf::state::y];
