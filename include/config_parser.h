@@ -28,7 +28,7 @@ namespace cev_localization {
 
         struct Config {
             // General settings
-            double time_step; // seconds
+            double time_step;  // seconds
 
             std::string main_model;
 
@@ -36,7 +36,6 @@ namespace cev_localization {
             std::string odometry_topic;
             std::string base_link_frame;
             std::string odom_frame;
-            
 
             // Sensors
             std::unordered_map<std::string, Sensor> sensors;
