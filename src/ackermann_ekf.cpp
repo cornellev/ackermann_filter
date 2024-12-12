@@ -113,7 +113,7 @@ public:
 
         main_model = update_models[config.main_model].get();
 
-        timer = this->create_wall_timer(std::chrono::milliseconds((int) (config.time_step * 1000.0)),
+        timer = this->create_wall_timer(std::chrono::milliseconds((int)(config.time_step * 1000.0)),
             std::bind(&LocalizationNode::timer_callback, this));
 
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
