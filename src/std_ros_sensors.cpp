@@ -10,7 +10,8 @@ double IMUSensor::pos_mod(double angle) {
 }
 
 IMUSensor::IMUSensor(std::string topic, V state, M covariance,
-    std::vector<std::shared_ptr<Model>> dependents, std::vector<std::string> state_mask, bool relative)
+    std::vector<std::shared_ptr<Model>> dependents, std::vector<std::string> state_mask,
+    bool relative)
     : RosSensor<sensor_msgs::msg::Imu>(topic, state, covariance, dependents),
       initialized(false),
       relative(relative),
