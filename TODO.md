@@ -1,0 +1,5 @@
+ - Use message covariance, allow constant override in config
+ - Incorporate steering angle in ackermann informed calcs
+ - Write a proper README
+ - Figure out how to make an official ROS2 open source project
+ - Make sure the pipelining update frequencies make sense... (should we only update the roots periodically?)
