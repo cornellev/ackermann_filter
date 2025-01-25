@@ -78,7 +78,8 @@ public:
 
             if (sen.type == "IMU") {
                 auto sensor = std::make_shared<standard_ros_sensors::IMUSensor>(sen.topic,
-                    V::Zero(), M::Identity() * .1, models, sen.state_mask);
+                    V::Zero(), M::Identity() * .1, models, sen.state_mask,
+                    sen.use_message_covariance);
 
                 sensors[name] = sensor;
 
@@ -89,7 +90,8 @@ public:
 
             } else if (sen.type == "RAW") {
                 auto sensor = std::make_shared<standard_ros_sensors::RawSensor>(sen.topic,
-                    V::Zero(), M::Identity() * .1, models, sen.state_mask);
+                    V::Zero(), M::Identity() * .1, models, sen.state_mask,
+                    sen.use_message_covariance);
 
                 sensors[name] = sensor;
 

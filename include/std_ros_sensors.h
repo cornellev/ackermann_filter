@@ -24,21 +24,26 @@ namespace cev_localization {
             double initial_yaw;
             double last_reported_yaw;
             double last_sensor_raw_yaw;
+            bool use_message_covariance = true;
 
         public:
             IMUSensor(std::string topic, V state, M covariance,
                 std::vector<std::shared_ptr<Model>> dependents,
                 std::vector<std::string> state_mask = {"d2_x", "d2_y", "yaw"},
-                bool relative = true);
+                bool use_message_covariance = true, bool relative = true);
 
             StatePackage msg_update(sensor_msgs::msg::Imu::SharedPtr msg);
         };
 
         class RawSensor : public RosSensor<cev_msgs::msg::SensorCollect> {
+        protected:
+            bool use_message_covariance = true;
+
         public:
             RawSensor(std::string topic, V state, M covariance,
                 std::vector<std::shared_ptr<Model>> dependents,
-                std::vector<std::string> state_mask = {"d_x", "tau"});
+                std::vector<std::string> state_mask = {"d_x", "tau"},
+                bool use_message_covariance = true);
 
             StatePackage msg_update(cev_msgs::msg::SensorCollect::SharedPtr msg);
         };

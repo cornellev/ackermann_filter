@@ -11,7 +11,8 @@ Config ConfigParser::loadConfig(const std::string& filePath) {
     try {
         double rate = configNode["odometry_settings"]["publish_rate"].as<double>();
         if (rate <= 0) {
-            throw std::runtime_error("Parameter `odometry_settings/publish_rate` must be greater than 0");
+            throw std::runtime_error(
+                "Parameter `odometry_settings/publish_rate` must be greater than 0");
         }
         config.time_step = 1.0 / rate;
     } catch (YAML::Exception& e) {
@@ -20,7 +21,8 @@ Config ConfigParser::loadConfig(const std::string& filePath) {
 
     // Odometry settings
     try {
-        config.base_link_frame = configNode["odometry_settings"]["base_link_frame"].as<std::string>();
+        config.base_link_frame =
+            configNode["odometry_settings"]["base_link_frame"].as<std::string>();
     } catch (YAML::Exception& e) {
         config.base_link_frame = "base_link";
     }
@@ -36,7 +38,7 @@ Config ConfigParser::loadConfig(const std::string& filePath) {
     } catch (YAML::Exception& e) {
         config.odometry_topic = "odom";
     }
-    
+
     // Main model
     try {
         config.main_model = configNode["odometry_settings"]["main_model"].as<std::string>();
@@ -66,7 +68,7 @@ cev_localization::config_parser::Sensor ConfigParser::parseSensor(const YAML::No
     } catch (YAML::Exception& e) {
         throw std::runtime_error("Sensor type not defined");
     }
-    
+
     try {
         sensor.topic = sensorNode["topic"].as<std::string>();
     } catch (YAML::Exception& e) {
@@ -85,7 +87,17 @@ cev_localization::config_parser::Sensor ConfigParser::parseSensor(const YAML::No
     }
 
     // Parse covariance_multiplier
-    sensor.covariance_multiplier = sensorNode["covariance_multiplier"].as<double>();
+    try {
+        sensor.covariance_multiplier = sensorNode["covariance_multiplier"].as<double>();
+    } catch (YAML::Exception& e) {
+        sensor.covariance_multiplier = 1.0;
+    }
+
+    try {
+        sensor.use_message_covariance = sensorNode["use_message_covariance"].as<bool>();
+    } catch (YAML::Exception& e) {
+        sensor.use_message_covariance = true;
+    }
 
     // Parse estimator_models
     for (const auto& model: sensorNode["estimator_models"]) {
