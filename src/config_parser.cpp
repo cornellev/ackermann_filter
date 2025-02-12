@@ -46,6 +46,13 @@ Config ConfigParser::loadConfig(const std::string& filePath) {
         throw std::runtime_error("Parameter `odometry_settings/main_model` not defined");
     }
 
+    // Publish tf
+    try {
+        config.publish_tf = configNode["odometry_settings"]["publish_tf"].as<bool>();
+    } catch (YAML::Exception& e) {
+        config.publish_tf = true;
+    }
+
     // Parse sensors
     for (const auto& sensorEntry: configNode["sensors"]) {
         const std::string sensorName = sensorEntry.first.as<std::string>();

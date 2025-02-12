@@ -8,6 +8,8 @@ odometry_settings:
   base_link: "base_link" # Base link frame ID
   odom_frame: "odom" # Odometry frame ID
 
+  publish_tf: true # Publish TF data
+
 # Define the sensors used by the node
 sensors:
   witmotion_imu:

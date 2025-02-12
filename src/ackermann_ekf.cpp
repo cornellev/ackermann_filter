@@ -177,22 +177,24 @@ private:
 
         odom_pub->publish(odom_msg);
 
-        geometry_msgs::msg::TransformStamped transformStamped;
+        if (config.publish_tf) {
+            geometry_msgs::msg::TransformStamped transformStamped;
 
-        transformStamped.header.stamp = this->now();
-        transformStamped.header.frame_id = config.odom_frame;
-        transformStamped.child_frame_id = config.base_link_frame;
+            transformStamped.header.stamp = this->now();
+            transformStamped.header.frame_id = config.odom_frame;
+            transformStamped.child_frame_id = config.base_link_frame;
 
-        transformStamped.transform.translation.x = state[ckf::state::x];
-        transformStamped.transform.translation.y = state[ckf::state::y];
-        transformStamped.transform.translation.z = state[ckf::state::z];
+            transformStamped.transform.translation.x = state[ckf::state::x];
+            transformStamped.transform.translation.y = state[ckf::state::y];
+            transformStamped.transform.translation.z = state[ckf::state::z];
 
-        transformStamped.transform.rotation.x = q.x();
-        transformStamped.transform.rotation.y = q.y();
-        transformStamped.transform.rotation.z = q.z();
-        transformStamped.transform.rotation.w = q.w();
+            transformStamped.transform.rotation.x = q.x();
+            transformStamped.transform.rotation.y = q.y();
+            transformStamped.transform.rotation.z = q.z();
+            transformStamped.transform.rotation.w = q.w();
 
-        tf_broadcaster_->sendTransform(transformStamped);
+            tf_broadcaster_->sendTransform(transformStamped);
+        }
     }
 };
 

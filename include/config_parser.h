@@ -37,6 +37,7 @@ namespace cev_localization {
             std::string odometry_topic;
             std::string base_link_frame;
             std::string odom_frame;
+            std::bool publish_tf;
 
             // Sensors
             std::unordered_map<std::string, Sensor> sensors;
