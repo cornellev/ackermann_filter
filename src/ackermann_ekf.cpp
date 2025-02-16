@@ -30,7 +30,7 @@ public:
         RCLCPP_INFO(this->get_logger(), "Parsing config file at %s", config_file_path.c_str());
 
         // Load the YAML configurations
-        config = config_parser::ConfigParser::load(config_file_path);
+        config = config_parser::ConfigParser::loadConfig(config_file_path);
 
         std::unordered_map<std::string, std::shared_ptr<ckf::Model>> update_models;
 
@@ -52,18 +52,6 @@ public:
             } else {
                 RCLCPP_ERROR(this->get_logger(), "Unknown model type: `%s`", mod.type.c_str());
                 throw std::runtime_error("Unknown model type");
-            }
-
-            if (mod.publish.active) {
-                filter_publishers[name] =
-                    this->create_publisher<nav_msgs::msg::Odometry>(mod.publish.topic, 1);
-
-                ckf::Model* model_ = update_models[name].get();
-
-                // Create a timer to publish the model
-                timers[name] = this->create_wall_timer(
-                    std::chrono::milliseconds((int)(1000 / mod.publish.rate)),
-                    [this, model_, name]() { this->publish_model(model_, name); });
             }
         }
 
@@ -117,33 +105,51 @@ public:
             }
         }
 
+        if (update_models.find(config.main_model) == update_models.end()) {
+            RCLCPP_ERROR(this->get_logger(), "Main model `%s` does not exist",
+                config.main_model.c_str());
+            throw std::runtime_error("Main model does not exist");
+        }
+
         RCLCPP_INFO(this->get_logger(), "Configuration file parsed! Finishing initialization.");
 
+        main_model = update_models[config.main_model].get();
+
+        timer = this->create_wall_timer(std::chrono::milliseconds((int)(config.time_step * 1000.0)),
+            std::bind(&LocalizationNode::timer_callback, this));
+
         tf_broadcaster_ = std::make_shared<tf2_ros::TransformBroadcaster>(this);
+        odom_pub = this->create_publisher<nav_msgs::msg::Odometry>(config.odometry_topic, 1);
     }
 
 private:
     config_parser::Config config;
 
     std::unordered_map<std::string, rclcpp::SubscriptionBase::SharedPtr> sensor_subscribers;
-    std::unordered_map<std::string, rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr>
-        filter_publishers;
-    std::unordered_map<std::string, rclcpp::TimerBase::SharedPtr> timers;
-
     std::unordered_map<std::string, std::shared_ptr<ckf::Model>> update_models;
     std::unordered_map<std::string, std::shared_ptr<ckf::Sensor>> sensors;
 
     std::shared_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
     rclcpp::TimerBase::SharedPtr timer;
+    rclcpp::Publisher<nav_msgs::msg::Odometry>::SharedPtr odom_pub;
 
-    void publish_model(ckf::Model* model_, std::string model) {
-        V state = model_->get_state();
-        M covariance = model_->get_covariance();
+    ckf::Model* main_model;
+
+    void timer_callback() {
+        double time = get_clock()->now().seconds();
+
+        // model->update(time);
+        V state = main_model->get_state();
+        M covariance = main_model->get_covariance();
+
+        // std::pair<V, M> prediction = main_model->predict(time);
+        // V state = prediction.first;
+        // M covariance = prediction.second;
 
         nav_msgs::msg::Odometry odom_msg;
         odom_msg.header.stamp = this->now();
-        odom_msg.header.frame_id = this->config.update_models[model].publish.parent_frame;
-        odom_msg.child_frame_id = this->config.update_models[model].publish.child_frame;
+        odom_msg.header.frame_id = config.odom_frame;
+        odom_msg.child_frame_id = config.base_link_frame;
 
         odom_msg.pose.pose.position.x = state[ckf::state::x];
         odom_msg.pose.pose.position.y = state[ckf::state::y];
@@ -169,15 +175,14 @@ private:
         odom_msg.twist.covariance[7] = covariance(ckf::state::d_y, ckf::state::d_y);
         odom_msg.twist.covariance[35] = covariance(ckf::state::d_yaw, ckf::state::d_yaw);
 
-        this->filter_publishers[model]->publish(odom_msg);
+        odom_pub->publish(odom_msg);
 
-        if (this->config.update_models[model].publish.publish_tf) {
+        if (config.publish_tf) {
             geometry_msgs::msg::TransformStamped transformStamped;
 
             transformStamped.header.stamp = this->now();
-            transformStamped.header.frame_id =
-                this->config.update_models[model].publish.parent_frame;
-            transformStamped.child_frame_id = this->config.update_models[model].publish.child_frame;
+            transformStamped.header.frame_id = config.odom_frame;
+            transformStamped.child_frame_id = config.base_link_frame;
 
             transformStamped.transform.translation.x = state[ckf::state::x];
             transformStamped.transform.translation.y = state[ckf::state::y];
@@ -188,7 +193,7 @@ private:
             transformStamped.transform.rotation.z = q.z();
             transformStamped.transform.rotation.w = q.w();
 
-            this->tf_broadcaster_->sendTransform(transformStamped);
+            tf_broadcaster_->sendTransform(transformStamped);
         }
     }
 };
